@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#121212">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<title>WorkTime+ — Controle de Horas Extras</title>
+<style>
+:root{--bg:#0f1113;--card:#141516;--muted:#9aa0a6;--text:#e8eef6;--accent:#8e9eff;}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Roboto,Arial;background:var(--bg);color:var(--text);}
+.container{max-width:980px;margin:22px auto;padding:18px;}
+.header{display:flex;align-items:center;gap:14px;justify-content:space-between;margin-bottom:18px}
+.logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#6c7cff);display:flex;align-items:center;justify-content:center;font-weight:700;color:#041025}
+.card{background:var(--card);border-radius:12px;padding:14px;}
+.input,select,textarea{width:100%;padding:10px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--text)}
+.button{padding:10px 12px;border-radius:8px;border:none;background:var(--accent);color:#041025;cursor:pointer}
+.small{font-size:12px;color:#9aa0a6}
+.table-wrap{overflow:auto;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.02)}
+</style>
+</head>
+<body>
+<div class="container">
+<header class="header">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="logo">WT+</div>
+    <div>
+      <h1 style="margin:0;font-size:18px">WorkTime+ — Registro de Horas</h1>
+      <div class="small">PWA otimizado para GitHub Pages e Android</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button id="btnExport" class="button">Exportar</button>
+    <label class="button" for="fileImport">Importar</label>
+    <input id="fileImport" type="file" accept=".csv" style="display:none">
+  </div>
+</header>
+
+<section class="card">
+  <h2>Novo Lançamento</h2>
+  <div style="display:grid;grid-template-columns:1fr 140px;gap:10px">
+    <div>
+      <label class="small">Data</label>
+      <input id="date" class="input" type="date">
+      <label class="small">Tipo</label>
+      <select id="type" class="input"><option>Banco de Horas</option><option>Hora 50%</option><option>Hora 100%</option><option>Plantão</option><option>Outro</option></select>
+      <label class="small">Destino</label>
+      <select id="destino" class="input"><option>Compensação de Jornada (Chegada Flexível)</option><option>Saída Antecipada</option><option>Pagamento</option><option>Pico de Demanda</option><option>Colaboração de Horas</option></select>
+    </div>
+    <div>
+      <label class="small">Horas</label>
+      <input id="hours" class="input" type="text" placeholder="2 or 1:30">
+      <label class="small">Projeto</label>
+      <input id="project" class="input" type="text" placeholder="Ex: Operações">
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button id="btnSave" class="button">Salvar</button>
+        <button id="btnSubtract" class="button" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--text)">Subtrair</button>
+      </div>
+    </div>
+  </div>
+  <label class="small">Observações</label>
+  <textarea id="notes" class="input" rows="2"></textarea>
+  <div class="small">OBS: Subtrações usam o mesmo formulário; limite 10 horas.</div>
+</section>
+
+<section class="card" style="margin-top:12px">
+  <h2>Registros</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Data</th><th>Horas</th><th>Tipo</th><th>Destino</th><th>Projeto</th><th>Obs</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<footer style="margin-top:12px;text-align:center;color:#9aa0a6">WorkTime+ • PWA pronto para GitHub Pages</footer>
+</div>
+
+<script>
+const KEY='worktime.entries.v1';
+const $=s=>document.querySelector(s);
+function parseHours(v){if(!v) return NaN; v=String(v).trim().replace(',', '.'); if(v.includes(':')){const [h,m]=v.split(':'); return parseInt(h,10)+(parseInt(m||0,10)/60);} return parseFloat(v);}
+function fmtHM(h){const sign=h<0?'-':'';const a=Math.abs(h);const H=Math.floor(a);const M=Math.round((a-H)*60); return `${sign}${H}:${M<10?'0':''}${M}`; }
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return[]}}
+function save(list){localStorage.setItem(KEY,JSON.stringify(list))}
+function render(){const list=load().sort((a,b)=>new Date(b.date)-new Date(a.date)); const tbody=$('#tbody'); tbody.innerHTML=''; list.forEach(e=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${new Date(e.date).toLocaleDateString()}</td><td>${fmtHM(e.hours)}</td><td>${e.type}</td><td>${e.destino}</td><td>${e.project||'-'}</td><td>${e.notes||''}</td>`; tbody.appendChild(tr); });}
+document.addEventListener('click',e=>{
+ if(e.target.matches('#btnSave')){
+   const date=$('#date').value||new Date().toISOString().slice(0,10);
+   const hours=parseHours($('#hours').value);
+   if(isNaN(hours)||hours<=0){alert('Horas inválidas');return;}
+   const entry={id:Date.now(),date:new Date(date).toISOString(),hours,type:$('#type').value,destino:$('#destino').value,project:$('#project').value,notes:$('#notes').value};
+   const list=load(); list.push(entry); save(list); render(); $('#hours').value=''; $('#notes').value='';
+ }
+ if(e.target.matches('#btnSubtract')){
+   const date=$('#date').value||new Date().toISOString().slice(0,10);
+   const hours=parseHours($('#hours').value);
+   if(isNaN(hours)||hours<=0||hours>10){alert('Informe 1-10 horas');return;}
+   const entry={id:Date.now(),date:new Date(date).toISOString(),hours:-Math.abs(hours),type:'Subtração',destino:$('#destino').value,project:$('#project').value,notes:$('#notes').value};
+   const list=load(); list.push(entry); save(list); render(); $('#hours').value=''; $('#notes').value='';
+ }
+ if(e.target.matches('#btnExport')){
+   const list=load(); if(!list.length){alert('Sem registros');return;} const csv=['date,hours,type,destino,project,notes']; list.forEach(r=>csv.push([r.date,r.hours,r.type,r.destino,r.project,r.notes].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','))); const blob=new Blob([csv.join('\n')],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='worktime_export.csv'; a.click(); URL.revokeObjectURL(url);
+ }
+});
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+window.addEventListener('load',()=>{ $('#date').value=new Date().toISOString().slice(0,10); render(); });
+</script>
+</body>
+</html>
